@@ -24,6 +24,27 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	//   x, y, theta and their uncertainties from GPS) and all weights to 1. 
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
+	default_random_engine ranGen;
+	num_particles=1000;	
+	std::vector<Particle> particles(1000);
+	
+	normal_distribution<double> dist_x(x,std[0]);
+	normal_distribution<double> dist_y(y,std[1]);
+	normal_distribution<double> dist_theta(theta,std[2]);
+
+	int	p_id= 0; 
+
+	// Practicing standard library functions. 
+	for(std::vector<Particle>::iterator iter_p = particles.begin(); iter_p != particles.end() ; iter_p ++){
+		//set particle Id. 
+		iter_p->id=p_id; 
+		p_id++;
+		iter_p->x=dist_x(ranGen);
+		iter_p->y=dist_y(ranGen);
+		iter_p->theta=dist_theta(ranGen);
+		iter_p->weight=1.0;
+		}
+
 
 }
 
@@ -32,6 +53,28 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	// NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
+	
+	//create temporary pose variables
+	double tmp_x; double tmp_y; double tmp_theta;
+
+	default_random_engine ranGen;
+	for(std::vector<Particle>::iterator iter_p = particles.begin(); iter_p != particles.end() ; iter_p ++){
+		tmp_x= iter_p->x + (velocity/yaw_rate)*(sin((iter_p->theta + yaw_rate*delta_t) - sin(iter_p->theta)));
+		tmp_y= iter_p->y + (velocity/yaw_rate)*(cos((iter_p->theta) - cos(iter_p->theta + yaw_rate*delta_t)));
+		tmp_theta= iter_p->theta + yaw_rate;
+
+		// TODO: If time permits consider doing this outside of for loop with  zero center and 
+		// Would just involve adding at the end of each equation instead of making a distribution. 
+		normal_distribution<double> dist_x(tmp_x,std_pos[0]);
+		normal_distribution<double> dist_y(tmp_y,std_pos[1]);
+		normal_distribution<double> dist_theta(tmp_theta,std_pos[2]);
+		// Replace existing position values with those including travel and Guassian noise added; 
+		iter_p->x=dist_x(ranGen);
+		iter_p->y=dist_y(ranGen);
+		iter_p->theta=dist_theta(ranGen);
+	}
+		
+		//
 
 }
 

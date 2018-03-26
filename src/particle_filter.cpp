@@ -14,6 +14,7 @@
 #include <sstream>
 #include <string>
 #include <iterator>
+#include "map.h"
 
 #include "particle_filter.h"
 
@@ -73,9 +74,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 		iter_p->y=dist_y(ranGen);
 		iter_p->theta=dist_theta(ranGen);
 	}
-		
-		//
-
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
@@ -84,6 +82,25 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
 
+	// Cycle through all the available landmark predictions 
+	for(std::vector<LandmarkObs>::iterator iter_pred = predicted.begin(); iter_pred !=predicted.end();iter_pred++){
+		double dist_score; // initializing score value
+		std::vector<LandmarkObs>::iterator bestMatchPtr; // pointer to best match observation
+		for(std::vector<LandmarkObs>::iterator iter_obs = observations.begin(); iter_obs != observations.end() ; iter_obs ++){
+			//Set values for start
+			if(iter_pred==predicted.begin()){
+				dist_score = dist(iter_obs->x,iter_obs->y,iter_pred->x,iter_pred->y);
+				bestMatchPtr = iter_obs;
+			}
+			//Compare on every other cycle and overwrite if closer
+			else if(dist_score < dist(iter_obs->x,iter_obs->y,iter_pred->x,iter_pred->y)){
+					dist_score = dist(iter_obs->x,iter_obs->y,iter_pred->x,iter_pred->y);
+					bestMatchPtr = iter_obs;
+			}
+		}
+		//set observation id to the correct landmark 
+		bestMatchPtr->id = iter_pred->id;
+	}
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -98,6 +115,41 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
+	
+	// convert observations to map coordinates
+
+	for(std::vector<Particle>::iterator iter_p = particles.begin(); iter_p != particles.end() ; iter_p++){
+		std::vector<LandmarkObs> p_obs;
+		std::vector<LandmarkObs> obs_free = observations; // observations vector is const.. can't modify it. 
+		for(std::vector<Map::single_landmark_s>::const_iterator iter_lm = map_landmarks.landmark_list.begin(); iter_lm !=map_landmarks.landmark_list.end();iter_lm++){
+			LandmarkObs obs;
+			//Generate predicted measurement for each location
+			obs.id = iter_lm->id_i;		
+			double map_x,map_y; // temp location varaibles for predicted measurement in map coordinates
+			map_x = iter_lm->x_f -iter_p->x;
+			map_y = iter_lm->y_f -iter_p->y;
+			// Execute coordinate tranformation using the particle orientation value. 
+			obs.x = map_x*cos(iter_p->theta)+map_y*sin(iter_p->theta);
+			obs.y = map_y*cos(iter_p->theta)-map_x*sin(iter_p->theta);
+			// if the landmark distance exists within the range of the sensor
+			if(dist(0,obs.x,0,obs.y)<sensor_range){
+				// Push the predicted observation into the new vector. 
+				p_obs.push_back(obs);
+			}
+		}
+		//Run data association and determine which observations identify which landmark
+		dataAssociation(p_obs,obs_free);
+		// iterate through each landmark in p_obs and determine which of these should not be included 
+		double weight = 1; 
+		for(std::vector<LandmarkObs>::iterator iter_pbs=p_obs.begin(); iter_pbs != p_obs.end(); iter_pbs++){
+			for(std::vector<LandmarkObs>::iterator iter_obs=obs_free.begin(); iter_obs!=obs_free.end();iter_obs++){
+			}
+
+		}
+	}
+
+
+
 }
 
 void ParticleFilter::resample() {

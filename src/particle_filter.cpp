@@ -140,12 +140,24 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		//Run data association and determine which observations identify which landmark
 		dataAssociation(p_obs,obs_free);
 		// iterate through each landmark in p_obs and determine which of these should not be included 
-		double weight = 1; 
-		for(std::vector<LandmarkObs>::iterator iter_pbs=p_obs.begin(); iter_pbs != p_obs.end(); iter_pbs++){
-			for(std::vector<LandmarkObs>::iterator iter_obs=obs_free.begin(); iter_obs!=obs_free.end();iter_obs++){
+		double weight = 1;
+		double sig_x = std_landmark[0];
+		double sig_y = std_landmark[1];
+		double wb = (1/(2*M_PI*sig_x*sig_y));
+		for(std::vector<LandmarkObs>::iterator iter_of = obs_free.begin(); iter_of != obs_free.end();iter_of++){
+			for(std::vector<Map::single_landmark_s>::const_iterator iter_lm = map_landmarks.landmark_list.begin(); iter_lm !=map_landmarks.landmark_list.end();iter_lm++){
+				if(iter_of->id==iter_lm->id_i){
+					double x=iter_of->x;
+					double y=iter_of->y;
+					double u_x=iter_lm->x_f;
+					double u_y=iter_lm->y_f;
+					
+					double exponent = -1 * ((x-u_x)*(x-u_x)/(2*sig_x*sig_x) + (y-u_y)*(y-u_y)/(2*sig_y*sig_y));
+					weight=weight*wb*exp(exponent);
+				}
 			}
-
 		}
+		iter_p->weight=weight;
 	}
 
 

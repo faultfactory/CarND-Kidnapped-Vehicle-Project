@@ -51,6 +51,32 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
 
+	// create temporary variables
+	double tmp_x; double tmp_y; double tmp_theta;
+	// create random noise distribution generators 
+	default_random_engine ranGen;
+	normal_distribution<double> dist_x(0,std_pos[0]);
+	normal_distribution<double> dist_y(0,std_pos[1]);
+	normal_distribution<double> dist_theta(0,std_pos[2]);
+
+	for(std::vector<Particle>::iterator iter_p = particles.begin(); iter_p != particles.end() ; iter_p++){
+
+		//Motion model accounting for yaw rate becoming close to zero. 
+		if(fabs(yaw_rate)>0.01){
+			tmp_x=iter_p->x+((velocity/yaw_rate)*(sin(iter_p->theta+yaw_rate*delta_t)-sin(iter_p->theta)));
+			tmp_y=iter_p->y+((velocity/yaw_rate)*(-cos(iter_p->theta+yaw_rate*delta_t)+cos(iter_p->theta)));
+			tmp_theta=iter_p->theta + yaw_rate*delta_t;}
+		else{
+			tmp_x = iter_p->x+(velocity*cos(iter_p->theta)*delta_t);
+			tmp_y = iter_p->y+(velocity*sin(iter_p->theta)*delta_t);
+			tmp_theta = iter_p->theta+(yaw_rate*delta_t);
+		}
+		iter_p->x=tmp_x+dist_x(ranGen);
+		iter_p->y=tmp_y+dist_y(ranGen);
+		iter_p->theta=tmp_theta+dist_theta(ranGen);
+	}
+
+
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {

@@ -48,34 +48,30 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	// NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
-	default_random_engine ranGen;
 
+	// create temporary variables
+	double tmp_x; double tmp_y; double tmp_theta;
+	// create random noise distribution generators 
+	default_random_engine ranGen;
+	normal_distribution<double> dist_x(0,std_pos[0]);
+	normal_distribution<double> dist_y(0,std_pos[1]);
+	normal_distribution<double> dist_theta(0,std_pos[2]);
 
 	for(std::vector<Particle>::iterator iter_p = particles.begin(); iter_p != particles.end() ; iter_p++){
-		double tmp_x, tmp_y, tmp_theta; 
-		double px = iter_p->x;
-		double py = iter_p->y;
-		double theta = iter_p->theta; 
-		// Borrowing some code from the UKF project to protect against YawRate==0
-		// discarding the yaw rate accel
-		
-		if(fabs(yaw_rate)>0.0001){
-			tmp_x=px+(velocity/yaw_rate)*(sin(theta+yaw_rate*delta_t)-sin(theta));
-			tmp_y=py+(velocity/yaw_rate)*(-cos(theta+yaw_rate*delta_t)+cos(theta));
-		}
+
+		//Motion model accounting for yaw rate becoming close to zero. 
+		if(fabs(yaw_rate)>0.01){
+			tmp_x=iter_p->x+((velocity/yaw_rate)*(sin(iter_p->theta+yaw_rate*delta_t)-sin(iter_p->theta)));
+			tmp_y=iter_p->y+((velocity/yaw_rate)*(-cos(iter_p->theta+yaw_rate*delta_t)+cos(iter_p->theta)));
+			tmp_theta=iter_p->theta + yaw_rate*delta_t;}
 		else{
-			tmp_x=px+(velocity*cos(theta)*delta_t);
-			tmp_y=py+(velocity*sin(theta)*delta_t);
-			cout<<"yawrateLow"<<endl;
+			tmp_x = iter_p->x+(velocity*cos(iter_p->theta)*delta_t);
+			tmp_y = iter_p->y+(velocity*sin(iter_p->theta)*delta_t);
+			tmp_theta = iter_p->theta+(yaw_rate*delta_t);
 		}
-		tmp_theta= theta + yaw_rate*delta_t;
-		normal_distribution<double> dist_x(tmp_x,std_pos[0]);
-		normal_distribution<double> dist_y(tmp_y,std_pos[1]);
-		normal_distribution<double> dist_theta(tmp_theta,std_pos[2]);
-		// Replace existing position values with those including travel and Guassian noise added; 
-		iter_p->x=dist_x(ranGen);
-		iter_p->y=dist_y(ranGen);
-		iter_p->theta=dist_theta(ranGen);
+		iter_p->x=tmp_x+dist_x(ranGen);
+		iter_p->y=tmp_y+dist_y(ranGen);
+		iter_p->theta=tmp_theta+dist_theta(ranGen);
 	}
 
 
@@ -132,12 +128,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		for(std::vector<LandmarkObs>::const_iterator iter_obs = observations.begin(); iter_obs != observations.end();iter_obs++){
 			//create a new obs
 			LandmarkObs obs_out;
-			//create rotated observation values
-			double x_rot = (iter_obs->x * cos(iter_p->theta)) + (iter_obs->y * sin(iter_p->theta));
-			double y_rot = -(iter_obs->x * sin(iter_p->theta)) + (iter_obs->y * cos(iter_p->theta));
-			//add rotated observation to particle position and assign to temporary observation 
-			obs_out.x = iter_obs->x+x_rot; 
-			obs_out.y = iter_obs->y+y_rot; 
+			//create rotated observation values and add them to particle position. 
+			obs_out.x = (iter_obs->x * cos(iter_p->theta)) - (iter_obs->y * sin(iter_p->theta))+iter_p->x;
+			obs_out.y = (iter_obs->x * sin(iter_p->theta)) + (iter_obs->y * cos(iter_p->theta))+iter_p->y;
 			// push to output vector
 			pred_obs.push_back(obs_out);
 		}
@@ -165,6 +158,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 						lm_asc = iter_lm->id;
 					}
 				}
+				
 			}
 			if(lm_asc !=0){
 				iter_p->associations.push_back(lm_asc);
@@ -188,7 +182,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			auto asc=iter_p->associations;
 			auto sx=iter_p->sense_x;
 			auto sy=iter_p->sense_y;
-			cout<<"number of asc "<<asc.size()<<endl;
+			//cout<<"number of asc "<<asc.size()<<endl;
 			for(int i = 0; i<asc.size();i++){
 				// sub 1 from the asc index to get the correct value; 
 				auto lm=lm_list[asc[i]-1];
@@ -198,7 +192,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 				double y = sy[i];		
 				double expn = ((x-u_x)*(x-u_x)/(2.0*sig_x*sig_x))+((y-u_y)*(y-u_y)/(2.0*sig_y*sig_y));
 				wt=wt*gs_nrm*exp(-expn);
-				cout<<"WT: "<<wt<<endl;
+				//cout<<"WT: "<<wt<<endl;
 			}
 			iter_p->weight=wt;
 			weights.push_back(wt);
@@ -213,14 +207,14 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
-		std::vector<Particle> new_p; 
+	std::vector<Particle> new_p; 
 	default_random_engine gen(rand());
 	std::discrete_distribution<> dist_p(std::begin(weights), std::end(weights));
-	double chsn_indx = dist_p(gen);
 	for(int i=0; i < num_particles;i++){
-	new_p.push_back(particles[chsn_indx]);
+		int chsn_indx = dist_p(gen);
+		new_p.push_back(particles[chsn_indx]);
 	}
-
+	particles = new_p;
 }
 
 Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
